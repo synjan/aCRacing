@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AC Servere</title>
+<style>
+  body { font-family: system-ui, sans-serif; background: #1a1a2e; color: #eee; margin: 0; padding: 40px; }
+  h1 { text-align: center; margin-bottom: 40px; }
+  .servers { max-width: 600px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+  .server { background: #16213e; border-radius: 12px; padding: 24px; }
+  .server h2 { margin: 0 0 8px; font-size: 1.3em; }
+  .server p { margin: 4px 0; color: #aaa; font-size: 0.9em; }
+  .sessions { margin-top: 8px; font-size: 0.85em; color: #7a8ba8; }
+  .sessions span { margin-right: 12px; }
+  a.join { display: inline-block; margin-top: 12px; padding: 10px 24px; background: #e94560; color: #fff; text-decoration: none; border-radius: 8px; font-weight: bold; }
+  a.join:hover { background: #c73750; }
+</style>
+</head>
+<body>
+  <h1>AC Servere</h1>
+  <div class="servers">
+    <div class="server">
+      <h2>Nordschleife Touristenfahrten</h2>
+      <p>Fri kjøring - AI trafikk - Sol dynamisk ver</p>
+      <div class="sessions"><span>Praksis: ubegrenset</span></div>
+      <a class="join" href="acmanager://race/online/join?ip=46.225.176.106&httpPort=9680">Koble til</a>
+    </div>
+    <div class="server">
+      <h2>Formula Series 2026</h2>
+      <p>Tatuus FA1 - Roterende baner - Track limits</p>
+      <div class="sessions"><span>Kvali: 8 min</span><span>Race: 15 min</span><span>Back-to-back</span></div>
+      <a class="join" href="acmanager://race/online/join?ip=46.225.176.106&httpPort=9690">Koble til</a>
+    </div>
+    <div class="server">
+      <h2>Roadcar Series</h2>
+      <p>Kun Kunos biler - Roterende baner - Race Control</p>
+      <div class="sessions"><span>Kvali: 8 min</span><span>Race: 15 min</span><span>Back-to-back</span></div>
+      <a class="join" href="acmanager://race/online/join?ip=46.225.176.106&httpPort=9700">Koble til</a>
+    </div>
+  </div>
+</body>
+</html>

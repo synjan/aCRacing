@@ -1,0 +1,46 @@
+# AssettoServer – Trackday (Nordschleife) Extra Config
+
+# ── AI TRAFFIC ────────────────────────────────────────────────
+AiParams:
+  Enabled: true
+  AiPerPlayerCount: 3          # 3 AI per aktiv spiller
+  MaxAiTargetCount: 20         # Maks 20 AI-biler totalt
+  MinAiSafetyDistanceMeters: 20
+  Behavior: TrafficMode        # Kjører som turister, ikke racere
+  HideAiBeyondDistanceM: 380   # Skjul AI langt unna (spar CPU)
+  SplineWeightFilter: 0.5
+
+PlayerAiSlots:
+  Enabled: true
+  MinPlayerCount: 5            # Under 5 spillere = AI fyller opp
+
+# ── SOL / DYNAMISK VÆR ───────────────────────────────────────
+WeatherFxPlugin:
+  Enabled: true
+  StartTime: 16:30             # Golden hour – sen ettermiddag
+  StartWeatherType: 3          # Varierende
+  TimeMultiplier: 2            # 2x tidsfart – nyt solnedgangen
+  SyncWeatherWithClients: true # Alle ser nøyaktig samme vær
+  RainChance: 0.35             # 35% sjanse for regn
+  FogChance: 0.25              # 25% sjanse for tåke
+
+# ── REAL PENALTY ─────────────────────────────────────────────
+RealPenaltyPlugin:
+  Enabled: true
+  TrackLimitsEnabled: false    # Ingen track limits på TF
+  IncidentRating: true         # Spor ulykker og aggressiv kjøring
+
+# ── CHECKSUMS (mod-validering) ────────────────────────────────
+# Sett til true hvis du vil tvinge eksakt mod-versjon
+# For trackday er dette valgfritt da biler er mer åpne
+ChecksumEnabled: false
+
+# ── STRACKER INTEGRASJON ──────────────────────────────────────
+EnableStracker: true
+StrackerPort: 50041
+
+# ── EKSTRA FEATURES ───────────────────────────────────────────
+# CSP: RubberFX og dynamic surface (krever Patreon CSP)
+ExtraHudEnabled: true
+DynamicTrackSurface: true
+RubberFxEnabled: true

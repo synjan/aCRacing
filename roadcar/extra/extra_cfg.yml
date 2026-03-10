@@ -1,0 +1,59 @@
+# AssettoServer – Roadcar Serie Extra Config
+
+# ── AI GRID FILLER ────────────────────────────────────────────
+AiParams:
+  Enabled: true
+  MaxAiTargetCount: 14
+  Behavior: RacingMode
+  AiSkillLevel: 85             # Bedre AI-tempo for renere racing
+  AiAggression: 42             # Litt mer konkurransedyktig
+  HideAiBeyondDistanceM: 400
+
+PlayerAiSlots:
+  Enabled: true
+  MinPlayerCount: 5
+
+# ── CHECKSUMS ─────────────────────────────────────────────────
+# Kun Kunos biler – alle har dem, checksums ikke kritisk
+ChecksumEnabled: false
+
+# ── REAL PENALTY ─────────────────────────────────────────────
+RealPenaltyPlugin:
+  Enabled: true
+  TrackLimitsEnabled: true
+  PenaltyMode: DriveThrough
+  AllowedWheelsOffTrack: 2
+  IncidentRating: true
+  CutPenaltyThresholdMs: 250
+
+# ── SOL VÆR ──────────────────────────────────────────────────
+WeatherFxPlugin:
+  Enabled: true
+  StartTime: 16:30
+  StartWeatherType: 1
+  TimeMultiplier: 1
+  SyncWeatherWithClients: true
+  RainChance: 0.20
+
+# ── CSP FEATURES ──────────────────────────────────────────────
+DynamicTrackSurface: true
+RubberFxEnabled: true
+ExtraHudEnabled: true
+# Extended Physics fungerer automatisk client-side for Kunos biler
+
+# ── RACE CONTROL ──────────────────────────────────────────────
+RaceControlPlugin:
+  Enabled: true
+  SafetyCarEnabled: true
+  VirtualSafetyCarEnabled: true
+  VscMaxSpeed: 80
+  RedFlagEnabled: true
+  AutoRestartAfterRedFlag: false
+  NotifyPlayersOnSafetyCar: true
+  NotifyPlayersOnRedFlag: true
+  SafetyCarMessage: "⚠️ SAFETY CAR – Reduce speed!"
+  RedFlagMessage: "🚩 RED FLAG – Return to pits!"
+
+# ── STRACKER ──────────────────────────────────────────────────
+EnableStracker: true
+StrackerPort: 50043

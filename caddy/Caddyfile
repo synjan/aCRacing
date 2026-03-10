@@ -1,0 +1,52 @@
+# Caddyfile – Reverse proxy for AC server web services
+# Plasser i /etc/caddy/Caddyfile
+# Bytt ut "dittdomene.no" med ditt faktiske domene
+
+# ── stracker – lap times og statistikk ───────────────────────
+stats.dittdomene.no {
+  # Ruter til riktig stracker-instans basert på path
+  handle /trackday* {
+    uri strip_prefix /trackday
+    reverse_proxy localhost:50041
+  }
+  handle /formula* {
+    uri strip_prefix /formula
+    reverse_proxy localhost:50042
+  }
+  handle /roadcar* {
+    uri strip_prefix /roadcar
+    reverse_proxy localhost:50043
+  }
+  # Standard redirect til trackday
+  handle {
+    reverse_proxy localhost:50041
+  }
+
+  log {
+    output file /var/log/caddy/stats-access.log
+  }
+
+  header {
+    X-Content-Type-Options nosniff
+    X-Frame-Options DENY
+    Referrer-Policy no-referrer
+  }
+}
+
+# ── AC Live Timings – live kartvisning ────────────────────────
+live.dittdomene.no {
+  reverse_proxy localhost:8772
+
+  log {
+    output file /var/log/caddy/live-access.log
+  }
+}
+
+# ─────────────────────────────────────────────────────────────
+# INSTALLASJON:
+# sudo apt install caddy
+# sudo cp Caddyfile /etc/caddy/Caddyfile
+# sudo systemctl restart caddy
+#
+# Caddy håndterer SSL-sertifikater automatisk via Let's Encrypt!
+# Sørg for at DNS-records peker til din Hetzner-IP.

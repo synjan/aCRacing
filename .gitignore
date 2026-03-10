@@ -1,0 +1,28 @@
+# Hemmeligheter og passord
+*.env
+.env.*
+credentials*
+secrets*
+
+# Databasefiler
+*.db
+*.sqlite
+*.sqlite3
+
+# OS-filer
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor-filer
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Loggfiler
+*.log
+
+# Node
+node_modules/
