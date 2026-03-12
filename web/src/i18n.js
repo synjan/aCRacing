@@ -233,6 +233,15 @@ export const STRINGS = {
     noPlayersFound: "Ingen spillere funnet",
     searchMinChars: "Skriv minst 2 tegn",
     searching: "S\u00f8ker...",
+
+    // Standings
+    standings: "Poengstilling",
+    points: "Poeng",
+    wins: "Seiere",
+    podiums: "Podier",
+    fastestLap: "Raskeste runde",
+    noStandings: "Ingen poengdata",
+    month: "M\u00e5ned",
   },
   en: {
     home: "Home", servers: "Servers", schedule: "Schedule",
@@ -429,5 +438,14 @@ export const STRINGS = {
     noPlayersFound: "No players found",
     searchMinChars: "Type 2+ characters",
     searching: "Searching...",
+
+    // Standings
+    standings: "Standings",
+    points: "Points",
+    wins: "Wins",
+    podiums: "Podiums",
+    fastestLap: "Fastest Lap",
+    noStandings: "No standings data",
+    month: "Month",
   },
 };
