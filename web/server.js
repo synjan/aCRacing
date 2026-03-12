@@ -812,6 +812,65 @@ app.get("/api/standings/:instance/:steamId", (req, res) => {
   res.json(result);
 });
 
+// ── Live data (Tier 3) ──────────────────────────────────────────────────────
+const liveCache = {};
+const LIVE_CACHE_TTL = 3000;
+
+const LIVE_PORTS = { trackday: 9680, mx5cup: 9690, gt3: 9700 };
+
+async function fetchLiveData(instance) {
+  const port = LIVE_PORTS[instance];
+  if (!port) return null;
+
+  const now = Date.now();
+  if (liveCache[instance] && now - liveCache[instance].ts < LIVE_CACHE_TTL) {
+    return liveCache[instance].data;
+  }
+
+  const result = { session: null, drivers: [], driverCount: 0, maxClients: 0 };
+
+  try {
+    const infoResp = await fetch(`http://${AC_HOST}:${port}/INFO`, { signal: AbortSignal.timeout(3000) });
+    if (infoResp.ok) {
+      const info = await infoResp.json();
+      result.session = {
+        type: info.session != null && info.sessiontypes ? (
+          info.sessiontypes[info.session] === 1 ? "Practice" :
+          info.sessiontypes[info.session] === 2 ? "Qualifying" :
+          info.sessiontypes[info.session] === 3 ? "Race" : "Unknown"
+        ) : "Unknown",
+        timeLeft: info.timeleft || 0,
+        track: info.track || "",
+      };
+      result.driverCount = info.clients || 0;
+      result.maxClients = info.maxclients || 0;
+    }
+  } catch { /* ignore */ }
+
+  try {
+    const entryResp = await fetch(`http://${AC_HOST}:${port}/ENTRY_LIST`, { signal: AbortSignal.timeout(3000) });
+    if (entryResp.ok) {
+      const entries = await entryResp.json();
+      if (Array.isArray(entries?.Cars)) {
+        result.drivers = entries.Cars
+          .filter(c => c.IsConnected)
+          .map(c => ({ name: c.DriverName || "Unknown", car: c.Model || "", connected: true }));
+      }
+    }
+  } catch { /* /ENTRY_LIST may not be available */ }
+
+  liveCache[instance] = { data: result, ts: now };
+  return result;
+}
+
+app.get("/api/live/:instance", async (req, res) => {
+  const instance = req.params.instance;
+  if (!VALID_INSTANCES.includes(instance)) return res.status(400).json({ error: "Invalid instance" });
+
+  const data = await fetchLiveData(instance);
+  res.json(data || { session: null, drivers: [], driverCount: 0, maxClients: 0 });
+});
+
 // ── Frontend ─────────────────────────────────────────────────────────────────
 if (IS_PROD) {
   // Production: serve built static files from dist/
