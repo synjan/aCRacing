@@ -179,6 +179,8 @@ function getDb(instance) {
 const profileCache = new Map();
 const CACHE_TTL = 5 * 60 * 1000; // 5 min
 const steamCache = new Map();
+const F1_POINTS = [25, 18, 15, 12, 10, 8, 6, 4, 2, 1];
+const standingsCache = new Map();
 const STEAM_CACHE_TTL = 60 * 60 * 1000; // 1 hour
 
 async function fetchSteamProfile(steamId) {
@@ -641,6 +643,135 @@ app.get("/api/search", (req, res) => {
 
   const results = [...seen.values()].slice(0, 10);
   res.json(results);
+});
+
+// ── Standings (Tier 3) ───────────────────────────────────────────────────────
+app.get("/api/standings/:instance", (req, res) => {
+  const instance = req.params.instance;
+  if (!["mx5cup", "gt3"].includes(instance)) return res.status(400).json({ error: "Only race servers have standings" });
+
+  const db = getDb(instance);
+  if (!db) return res.json([]);
+
+  const now = Date.now();
+  const monthStart = new Date();
+  monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
+
+  const from = parseInt(req.query.from) || Math.floor(monthStart.getTime() / 1000);
+  const to = parseInt(req.query.to) || Math.floor(now / 1000);
+
+  const cacheKey = `${instance}-${from}-${to}`;
+  const cached = standingsCache.get(cacheKey);
+  if (cached && now - cached.ts < 300000) return res.json(cached.data);
+
+  // Find all race sessions in range
+  const sessions = db.prepare(
+    "SELECT SessionId, StartTimeDate FROM Session WHERE SessionType = 'Race' AND StartTimeDate >= ? AND StartTimeDate <= ? ORDER BY StartTimeDate"
+  ).all(from, to);
+
+  const playerPoints = {};
+
+  for (const sess of sessions) {
+    // Get participants with finish positions
+    const participants = db.prepare(`
+      SELECT p.PlayerId, p.Name, p.SteamGuid, pis.FinishPosition
+      FROM PlayerInSession pis
+      JOIN Players p ON pis.PlayerId = p.PlayerId
+      WHERE pis.SessionId = ? AND p.ArtInt = 0
+      ORDER BY pis.FinishPosition
+    `).all(sess.SessionId);
+
+    // Find fastest valid lap
+    const flResult = db.prepare(`
+      SELECT pis.PlayerId, MIN(l.LapTime) as fastestLap
+      FROM Lap l
+      JOIN PlayerInSession pis ON l.PlayerInSessionId = pis.PlayerInSessionId
+      WHERE pis.SessionId = ? AND l.Valid = 1
+      GROUP BY pis.PlayerId
+      ORDER BY fastestLap ASC
+      LIMIT 1
+    `).get(sess.SessionId);
+    const flPlayerId = flResult?.PlayerId || null;
+
+    for (const p of participants) {
+      const pos = p.FinishPosition;
+      const isDnf = pos == null || pos >= 1000;
+      const pts = isDnf ? 0 : (F1_POINTS[pos - 1] || 0);
+      const flBonus = (p.PlayerId === flPlayerId && !isDnf) ? 1 : 0;
+
+      if (!playerPoints[p.PlayerId]) {
+        playerPoints[p.PlayerId] = {
+          name: p.Name, steamGuid: p.SteamGuid,
+          points: 0, races: 0, wins: 0, podiums: 0, flBonuses: 0,
+        };
+      }
+      const pp = playerPoints[p.PlayerId];
+      pp.points += pts + flBonus;
+      pp.races += 1;
+      if (pos === 1) pp.wins += 1;
+      if (pos >= 1 && pos <= 3) pp.podiums += 1;
+      if (flBonus) pp.flBonuses += 1;
+    }
+  }
+
+  const standings = Object.values(playerPoints).sort((a, b) => b.points - a.points);
+  standingsCache.set(cacheKey, { data: standings, ts: now });
+  res.json(standings);
+});
+
+app.get("/api/standings/:instance/:steamId", (req, res) => {
+  const { instance, steamId } = req.params;
+  if (!["mx5cup", "gt3"].includes(instance)) return res.status(400).json({ error: "Only race servers" });
+  if (!/^7656119\d{10}$/.test(steamId)) return res.status(400).json({ error: "Invalid Steam ID" });
+
+  const db = getDb(instance);
+  if (!db) return res.json([]);
+
+  const now = Date.now();
+  const monthStart = new Date();
+  monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
+  const from = parseInt(req.query.from) || Math.floor(monthStart.getTime() / 1000);
+  const to = parseInt(req.query.to) || Math.floor(now / 1000);
+
+  const player = db.prepare("SELECT PlayerId FROM Players WHERE SteamGuid = ? AND ArtInt = 0").get(steamId);
+  if (!player) return res.json([]);
+
+  const races = db.prepare(`
+    SELECT s.SessionId, s.StartTimeDate as date, t.Track as track,
+           pis.FinishPosition as position,
+           MIN(CASE WHEN l.Valid = 1 THEN l.LapTime END) as bestLap
+    FROM PlayerInSession pis
+    JOIN Session s ON pis.SessionId = s.SessionId
+    JOIN Tracks t ON s.TrackId = t.TrackId
+    LEFT JOIN Lap l ON l.PlayerInSessionId = pis.PlayerInSessionId
+    WHERE pis.PlayerId = ? AND s.SessionType = 'Race'
+      AND s.StartTimeDate >= ? AND s.StartTimeDate <= ?
+    GROUP BY s.SessionId
+    ORDER BY s.StartTimeDate DESC
+  `).all(player.PlayerId, from, to);
+
+  const result = races.map(r => {
+    const pos = r.position;
+    const isDnf = pos == null || pos >= 1000;
+    const pts = isDnf ? 0 : (F1_POINTS[pos - 1] || 0);
+
+    // Check if this player had fastest lap in this race
+    const fl = db.prepare(`
+      SELECT pis.PlayerId, MIN(l.LapTime) as fastestLap
+      FROM Lap l
+      JOIN PlayerInSession pis ON l.PlayerInSessionId = pis.PlayerInSessionId
+      WHERE pis.SessionId = ? AND l.Valid = 1
+      GROUP BY pis.PlayerId ORDER BY fastestLap ASC LIMIT 1
+    `).get(r.SessionId);
+    const flBonus = (fl?.PlayerId === player.PlayerId && !isDnf);
+
+    return {
+      track: r.track, date: r.date, position: isDnf ? null : pos,
+      points: pts + (flBonus ? 1 : 0), fastestLapBonus: flBonus, bestLap: r.bestLap,
+    };
+  });
+
+  res.json(result);
 });
 
 // ── Frontend ─────────────────────────────────────────────────────────────────
