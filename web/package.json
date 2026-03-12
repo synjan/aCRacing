@@ -14,11 +14,13 @@
   "dependencies": {
     "better-sqlite3": "^12.6.2",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.3.1",
     "express-session": "^1.19.0",
     "passport": "^0.7.0",
     "passport-steam": "^1.0.18",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-router-dom": "^7.13.1",
     "serve-static": "^2.2.1"
   },
   "devDependencies": {

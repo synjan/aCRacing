@@ -1,3 +1,4 @@
+/* global process */
 // server.js – aCRacing web server
 // Dev:  Vite middleware (HMR) + Steam auth + API proxy
 // Prod: Static files (dist/) + Steam auth + API proxy
@@ -11,6 +12,7 @@ import passport from "passport";
 import SteamStrategy from "passport-steam";
 import http from "http";
 import Database from "better-sqlite3";
+import rateLimit from "express-rate-limit";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -21,7 +23,7 @@ try {
     const match = line.match(/^([A-Z_]+)=(.+)$/);
     if (match && !process.env[match[1]]) process.env[match[1]] = match[2].trim();
   }
-} catch {}
+} catch { /* .env not required */ }
 
 const PORT = parseInt(process.env.PORT || "3001");
 const STEAM_API_KEY = process.env.STEAM_API_KEY || "";
@@ -38,6 +40,7 @@ const API_MAP = {
 };
 
 const app = express();
+app.set("trust proxy", 1);
 
 // ── Session ──────────────────────────────────────────────────────────────────
 app.use(session({
@@ -75,6 +78,51 @@ if (STEAM_API_KEY) {
 
 app.use(passport.initialize());
 app.use(passport.session());
+
+// ── Rate limiting ────────────────────────────────────────────────────────────
+const relaxedLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  handler: (_req, res) => res.status(429).json({ error: "Too many requests", retryAfter: 60 }),
+});
+
+const standardLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  handler: (_req, res) => res.status(429).json({ error: "Too many requests", retryAfter: 60 }),
+});
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  handler: (_req, res) => res.status(429).json({ error: "Too many requests", retryAfter: 900 }),
+});
+
+// Apply standard limiter to API routes
+app.use("/api/leaderboard", standardLimiter);
+app.use("/api/results", standardLimiter);
+app.use("/api/tracks", standardLimiter);
+app.use("/api/profile", standardLimiter);
+app.use("/api/search", standardLimiter);
+app.use("/api/standings", standardLimiter);
+
+// Apply relaxed limiter to proxy and health routes
+app.use("/api/trackday", relaxedLimiter);
+app.use("/api/mx5cup", relaxedLimiter);
+app.use("/api/gt3", relaxedLimiter);
+app.use("/api/health", relaxedLimiter);
+app.use("/api/live", relaxedLimiter);
+app.use("/auth/profile", relaxedLimiter);
+
+// Apply auth limiter to auth routes
+app.use("/auth/steam", authLimiter);
+app.use("/auth/logout", authLimiter);
 
 // ── Auth routes ──────────────────────────────────────────────────────────────
 app.get("/auth/steam", (req, res, next) => {
@@ -280,6 +328,30 @@ app.get("/api/profile/:steamId", async (req, res) => {
     return res.status(404).json({ error: "Ingen data" });
   }
 
+  // Server history (Phase 6)
+  const serverHistory = {};
+  for (const [instance, _path] of Object.entries(DB_PATHS)) {
+    const db = getDb(instance);
+    if (!db) continue;
+    const player = db.prepare("SELECT PlayerId FROM Players WHERE SteamGuid = ? AND ArtInt = 0").get(steamId);
+    if (!player) continue;
+    const hist = db.prepare(`
+      SELECT MIN(s.StartTimeDate) as firstVisit,
+             MAX(s.StartTimeDate) as lastVisit,
+             COUNT(DISTINCT s.SessionId) as totalVisits
+      FROM PlayerInSession pis
+      JOIN Session s ON pis.SessionId = s.SessionId
+      WHERE pis.PlayerId = ?
+    `).get(player.PlayerId);
+    if (hist && hist.totalVisits > 0) {
+      serverHistory[instance] = {
+        firstVisit: hist.firstVisit,
+        lastVisit: hist.lastVisit,
+        totalVisits: hist.totalVisits,
+      };
+    }
+  }
+
   const result = {
     steamId,
     name: steam?.name || playerName || "Unknown",
@@ -289,10 +361,257 @@ app.get("/api/profile/:steamId", async (req, res) => {
     personalRecords,
     recentSessions: top10Sessions,
     favoriteCars,
+    serverHistory,
   };
 
   profileCache.set(cacheKey, { data: result, ts: Date.now() });
   res.json(result);
+});
+
+// ── Leaderboard endpoints (Phase 2) ──────────────────────────────────────────
+const VALID_INSTANCES = ["trackday", "mx5cup", "gt3"];
+
+app.get("/api/leaderboard/:instance", (req, res) => {
+  const instance = req.params.instance;
+  if (!VALID_INSTANCES.includes(instance)) return res.status(400).json({ error: "Invalid instance" });
+  const db = getDb(instance);
+  if (!db) return res.json([]);
+
+  try {
+    const rows = db.prepare(`
+      SELECT p.Name as name, p.SteamGuid as steamGuid, c.UiCarName as car, c.Car as carId,
+             t.Track as track, MIN(l.LapTime) as lapTime, l.Timestamp as timestamp
+      FROM Lap l
+      JOIN PlayerInSession pis ON l.PlayerInSessionId = pis.PlayerInSessionId
+      JOIN Players p ON pis.PlayerId = p.PlayerId
+      JOIN Cars c ON pis.CarId = c.CarId
+      JOIN Session s ON pis.SessionId = s.SessionId
+      JOIN Tracks t ON s.TrackId = t.TrackId
+      WHERE l.Valid = 1 AND p.ArtInt = 0
+      GROUP BY p.PlayerId, t.TrackId
+      ORDER BY lapTime
+      LIMIT 50
+    `).all();
+    res.json(rows);
+  } catch { res.json([]); }
+});
+
+app.get("/api/leaderboard/:instance/:trackId", (req, res) => {
+  const instance = req.params.instance;
+  const trackId = req.params.trackId;
+  if (!VALID_INSTANCES.includes(instance)) return res.status(400).json({ error: "Invalid instance" });
+  const db = getDb(instance);
+  if (!db) return res.json([]);
+
+  try {
+    const rows = db.prepare(`
+      SELECT p.Name as name, p.SteamGuid as steamGuid, c.UiCarName as car, c.Car as carId,
+             t.Track as track, MIN(l.LapTime) as lapTime, l.Timestamp as timestamp
+      FROM Lap l
+      JOIN PlayerInSession pis ON l.PlayerInSessionId = pis.PlayerInSessionId
+      JOIN Players p ON pis.PlayerId = p.PlayerId
+      JOIN Cars c ON pis.CarId = c.CarId
+      JOIN Session s ON pis.SessionId = s.SessionId
+      JOIN Tracks t ON s.TrackId = t.TrackId
+      WHERE l.Valid = 1 AND p.ArtInt = 0 AND t.Track = ?
+      GROUP BY p.PlayerId
+      ORDER BY lapTime
+      LIMIT 50
+    `).all(trackId);
+    res.json(rows);
+  } catch { res.json([]); }
+});
+
+app.get("/api/tracks/:instance", (req, res) => {
+  const instance = req.params.instance;
+  if (!VALID_INSTANCES.includes(instance)) return res.status(400).json({ error: "Invalid instance" });
+  const db = getDb(instance);
+  if (!db) return res.json([]);
+
+  try {
+    const rows = db.prepare(`
+      SELECT t.Track as track, COUNT(DISTINCT l.LapId) as lapCount,
+             COUNT(DISTINCT p.PlayerId) as driverCount
+      FROM Tracks t
+      JOIN Session s ON s.TrackId = t.TrackId
+      JOIN PlayerInSession pis ON pis.SessionId = s.SessionId
+      JOIN Lap l ON l.PlayerInSessionId = pis.PlayerInSessionId
+      JOIN Players p ON pis.PlayerId = p.PlayerId
+      WHERE l.Valid = 1 AND p.ArtInt = 0
+      GROUP BY t.TrackId
+      ORDER BY lapCount DESC
+    `).all();
+    res.json(rows);
+  } catch { res.json([]); }
+});
+
+// ── Race results endpoints (Phase 3) ────────────────────────────────────────
+app.get("/api/results/:instance", (req, res) => {
+  const instance = req.params.instance;
+  if (!VALID_INSTANCES.includes(instance)) return res.status(400).json({ error: "Invalid instance" });
+  const db = getDb(instance);
+  if (!db) return res.json({ sessions: [], total: 0 });
+
+  const page = Math.max(1, parseInt(req.query.page) || 1);
+  const limit = Math.min(50, Math.max(1, parseInt(req.query.limit) || 20));
+  const offset = (page - 1) * limit;
+
+  try {
+    const total = db.prepare(`SELECT COUNT(*) as cnt FROM Session`).get()?.cnt || 0;
+    const sessions = db.prepare(`
+      SELECT s.SessionId as sessionId, s.SessionType as type, t.Track as track,
+             s.StartTimeDate as startTime,
+             COUNT(DISTINCT pis.PlayerId) as playerCount
+      FROM Session s
+      JOIN Tracks t ON s.TrackId = t.TrackId
+      LEFT JOIN PlayerInSession pis ON pis.SessionId = s.SessionId
+      GROUP BY s.SessionId
+      ORDER BY s.StartTimeDate DESC
+      LIMIT ? OFFSET ?
+    `).all(limit, offset);
+    res.json({ sessions, total, page, limit });
+  } catch { res.json({ sessions: [], total: 0 }); }
+});
+
+app.get("/api/results/:instance/:sessionId", (req, res) => {
+  const instance = req.params.instance;
+  const sessionId = parseInt(req.params.sessionId);
+  if (!VALID_INSTANCES.includes(instance)) return res.status(400).json({ error: "Invalid instance" });
+  if (isNaN(sessionId)) return res.status(400).json({ error: "Invalid session ID" });
+  const db = getDb(instance);
+  if (!db) return res.status(404).json({ error: "DB not found" });
+
+  try {
+    const session = db.prepare(`
+      SELECT s.SessionId as sessionId, s.SessionType as type, t.Track as track,
+             s.StartTimeDate as startTime
+      FROM Session s
+      JOIN Tracks t ON s.TrackId = t.TrackId
+      WHERE s.SessionId = ?
+    `).get(sessionId);
+    if (!session) return res.status(404).json({ error: "Session not found" });
+
+    const results = db.prepare(`
+      SELECT p.Name as name, p.SteamGuid as steamGuid,
+             c.UiCarName as car, c.Car as carId,
+             pis.FinishPosition as position,
+             COUNT(l.LapId) as laps,
+             MIN(CASE WHEN l.Valid = 1 THEN l.LapTime END) as bestLap,
+             SUM(l.LapTime) as totalTime
+      FROM PlayerInSession pis
+      JOIN Players p ON pis.PlayerId = p.PlayerId
+      JOIN Cars c ON pis.CarId = c.CarId
+      LEFT JOIN Lap l ON l.PlayerInSessionId = pis.PlayerInSessionId
+      WHERE pis.SessionId = ? AND p.ArtInt = 0
+      GROUP BY pis.PlayerInSessionId
+      ORDER BY pis.FinishPosition
+    `).all(sessionId);
+
+    res.json({ ...session, results });
+  } catch { res.status(500).json({ error: "Query error" }); }
+});
+
+// ── Server health endpoint (Phase 4) ────────────────────────────────────────
+const healthBuffer = { trackday: [], mx5cup: [], gt3: [] };
+const HEALTH_BUFFER_SIZE = 1440; // 24h at 1min intervals
+
+async function pingServer(id, port) {
+  const start = Date.now();
+  try {
+    const resp = await fetch(`http://${AC_HOST}:${port}/INFO`, { signal: AbortSignal.timeout(5000) });
+    const ms = Date.now() - start;
+    return { ts: start, online: resp.ok, responseMs: ms };
+  } catch {
+    return { ts: start, online: false, responseMs: null };
+  }
+}
+
+async function healthCheck() {
+  const checks = [
+    { id: "trackday", port: 9680 },
+    { id: "mx5cup", port: 9690 },
+    { id: "gt3", port: 9700 },
+  ];
+  for (const { id, port } of checks) {
+    const result = await pingServer(id, port);
+    healthBuffer[id].push(result);
+    if (healthBuffer[id].length > HEALTH_BUFFER_SIZE) {
+      healthBuffer[id].shift();
+    }
+  }
+}
+
+// Run health check every 60 seconds
+healthCheck();
+setInterval(healthCheck, 60000);
+
+app.get("/api/health", (_req, res) => {
+  const result = {};
+  for (const id of VALID_INSTANCES) {
+    const buf = healthBuffer[id];
+    const latest = buf[buf.length - 1] || null;
+    const onlineCount = buf.filter(b => b.online).length;
+    const uptimePercent = buf.length > 0 ? ((onlineCount / buf.length) * 100).toFixed(1) : "0.0";
+    result[id] = {
+      online: latest?.online || false,
+      responseMs: latest?.responseMs || null,
+      uptimePercent,
+      checks: buf.length,
+    };
+  }
+  res.json(result);
+});
+
+// ── Paginated session history (Phase 5) ─────────────────────────────────────
+app.get("/api/profile/:steamId/sessions", async (req, res) => {
+  const steamId = req.params.steamId;
+  if (!/^7656119\d{10}$/.test(steamId)) {
+    return res.status(400).json({ error: "Invalid Steam ID" });
+  }
+
+  const page = Math.max(1, parseInt(req.query.page) || 1);
+  const limit = Math.min(50, Math.max(1, parseInt(req.query.limit) || 20));
+  const serverFilter = req.query.server || null;
+  const offset = (page - 1) * limit;
+
+  const allSessions = [];
+
+  const instances = serverFilter && VALID_INSTANCES.includes(serverFilter) ? [serverFilter] : VALID_INSTANCES;
+
+  for (const instance of instances) {
+    const db = getDb(instance);
+    if (!db) continue;
+
+    const player = db.prepare("SELECT PlayerId FROM Players WHERE SteamGuid = ? AND ArtInt = 0").get(steamId);
+    if (!player) continue;
+
+    const sessions = db.prepare(`
+      SELECT s.SessionType as type, t.Track as track,
+             c.UiCarName as car, c.Car as carId,
+             MIN(CASE WHEN l.Valid = 1 THEN l.LapTime END) as bestLap,
+             COUNT(l.LapId) as laps,
+             pis.FinishPosition as position,
+             s.StartTimeDate as date
+      FROM PlayerInSession pis
+      JOIN Session s ON pis.SessionId = s.SessionId
+      JOIN Tracks t ON s.TrackId = t.TrackId
+      JOIN Cars c ON pis.CarId = c.CarId
+      LEFT JOIN Lap l ON l.PlayerInSessionId = pis.PlayerInSessionId
+      WHERE pis.PlayerId = ?
+      GROUP BY pis.PlayerInSessionId
+      ORDER BY s.StartTimeDate DESC
+    `).all(player.PlayerId);
+
+    for (const s of sessions) {
+      allSessions.push({ ...s, server: instance });
+    }
+  }
+
+  allSessions.sort((a, b) => (b.date || 0) - (a.date || 0));
+  const total = allSessions.length;
+  const paginated = allSessions.slice(offset, offset + limit);
+
+  res.json({ sessions: paginated, total, page, limit });
 });
 
 // ── Frontend ─────────────────────────────────────────────────────────────────
