@@ -227,6 +227,12 @@ export const STRINGS = {
 
     // Rate limiting
     tooManyRequests: "For mange foresp\u00f8rsler, pr\u00f8v igjen senere",
+
+    // Player search
+    searchPlayers: "S\u00f8k spillere...",
+    noPlayersFound: "Ingen spillere funnet",
+    searchMinChars: "Skriv minst 2 tegn",
+    searching: "S\u00f8ker...",
   },
   en: {
     home: "Home", servers: "Servers", schedule: "Schedule",
@@ -417,5 +423,11 @@ export const STRINGS = {
 
     // Rate limiting
     tooManyRequests: "Too many requests, please try again later",
+
+    // Player search
+    searchPlayers: "Search players...",
+    noPlayersFound: "No players found",
+    searchMinChars: "Type 2+ characters",
+    searching: "Searching...",
   },
 };
