@@ -614,6 +614,35 @@ app.get("/api/profile/:steamId/sessions", async (req, res) => {
   res.json({ sessions: paginated, total, page, limit });
 });
 
+// ── Player search (Tier 3) ───────────────────────────────────────────────────
+app.get("/api/search", (req, res) => {
+  const q = (req.query.q || "").trim();
+  if (q.length < 2) return res.status(400).json({ error: "Query too short" });
+
+  const escaped = q.replace(/[\\%_]/g, c => "\\" + c);
+  const pattern = `%${escaped}%`;
+  const seen = new Map();
+
+  for (const instance of VALID_INSTANCES) {
+    const db = getDb(instance);
+    if (!db) continue;
+    const rows = db.prepare(
+      "SELECT Name, SteamGuid FROM Players WHERE Name LIKE ? ESCAPE '\\' AND ArtInt = 0 LIMIT 20"
+    ).all(pattern);
+    for (const row of rows) {
+      if (!row.SteamGuid) continue;
+      if (seen.has(row.SteamGuid)) {
+        seen.get(row.SteamGuid).servers.push(instance);
+      } else {
+        seen.set(row.SteamGuid, { name: row.Name, steamGuid: row.SteamGuid, servers: [instance] });
+      }
+    }
+  }
+
+  const results = [...seen.values()].slice(0, 10);
+  res.json(results);
+});
+
 // ── Frontend ─────────────────────────────────────────────────────────────────
 if (IS_PROD) {
   // Production: serve built static files from dist/
