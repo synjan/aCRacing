@@ -252,6 +252,17 @@ export const STRINGS = {
     quietHours: "Stille timer",
     quietFrom: "Fra",
     quietTo: "Til",
+
+    // Live widget
+    liveNow: "Live n\u00e5",
+    liveMap: "Banekart",
+    liveDashboard: "Dashboard",
+    gap: "Gap",
+    lastLap: "Siste runde",
+    leader: "Leder",
+    noLiveData: "Ingen live-data tilgjengelig",
+    liveView: "Visning",
+
     newRecord: "Ny rekord p\u00e5",
   },
   en: {
@@ -468,6 +479,17 @@ export const STRINGS = {
     quietHours: "Quiet hours",
     quietFrom: "From",
     quietTo: "To",
+
+    // Live widget
+    liveNow: "Live Now",
+    liveMap: "Track Map",
+    liveDashboard: "Dashboard",
+    gap: "Gap",
+    lastLap: "Last Lap",
+    leader: "Leader",
+    noLiveData: "No live data available",
+    liveView: "View",
+
     newRecord: "New record on",
   },
 };
