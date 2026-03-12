@@ -1,0 +1,12 @@
+# AssettoServer – MX-5 Cup Extra Config
+# Basert på AssettoServer 0.0.54 standardverdier, kun endrede verdier er satt.
+
+# ── TOPP-NIVÅ FLAGG ─────────────────────────────────────────
+EnableWeatherFx: true
+EnableClientMessages: true
+EnableUdpClientMessages: true
+EnableCustomUpdate: true
+
+# ── PLUGINS ─────────────────────────────────────────────────
+EnablePlugins:
+  - AutoModerationPlugin

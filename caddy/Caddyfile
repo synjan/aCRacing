@@ -1,31 +1,30 @@
 # Caddyfile – Reverse proxy for AC server web services
 # Plasser i /etc/caddy/Caddyfile
-# Bytt ut "dittdomene.no" med ditt faktiske domene
+# IP-basert oppsett (uten domene)
 
-# ── stracker – lap times og statistikk ───────────────────────
-stats.dittdomene.no {
-  # Ruter til riktig stracker-instans basert på path
-  handle /trackday* {
-    uri strip_prefix /trackday
-    reverse_proxy localhost:50041
-  }
-  handle /formula* {
-    uri strip_prefix /formula
-    reverse_proxy localhost:50042
-  }
-  handle /roadcar* {
-    uri strip_prefix /roadcar
-    reverse_proxy localhost:50043
-  }
-  # Standard redirect til trackday
-  handle {
-    reverse_proxy localhost:50041
+# ── Admin dashboard – http://46.225.176.106:8080 ─────────────────
+# Alt proxyes til Express (auth, API, statiske filer)
+:8080 {
+  reverse_proxy localhost:3001
+
+  log {
+    output file /var/log/caddy/admin-access.log
   }
 
+  header {
+    X-Content-Type-Options nosniff
+    Referrer-Policy no-referrer
+  }
+}
+
+# ── Stracker stats (separat port per instans for korrekt routing) ──
+# Stracker kjenner ikke til path-prefixer, sa egne porter unngår
+# redirect-problemer der /mx5cup/mainpage → /mainpage
+
+(stracker_headers) {
   log {
     output file /var/log/caddy/stats-access.log
   }
-
   header {
     X-Content-Type-Options nosniff
     X-Frame-Options DENY
@@ -33,20 +32,31 @@ stats.dittdomene.no {
   }
 }
 
-# ── AC Live Timings – live kartvisning ────────────────────────
-live.dittdomene.no {
-  reverse_proxy localhost:8772
-
-  log {
-    output file /var/log/caddy/live-access.log
-  }
+# Trackday stats – http://46.225.176.106:8081
+:8081 {
+  reverse_proxy localhost:50041
+  import stracker_headers
 }
 
-# ─────────────────────────────────────────────────────────────
+# MX-5 Cup stats – http://46.225.176.106:8082
+:8082 {
+  reverse_proxy localhost:50042
+  import stracker_headers
+}
+
+# GT3 stats – http://46.225.176.106:8083
+:8083 {
+  reverse_proxy localhost:50043
+  import stracker_headers
+}
+
+# ─────────────────────────────────────────────────────────────────
 # INSTALLASJON:
 # sudo apt install caddy
 # sudo cp Caddyfile /etc/caddy/Caddyfile
-# sudo systemctl restart caddy
+# sudo systemctl enable --now caddy
 #
-# Caddy håndterer SSL-sertifikater automatisk via Let's Encrypt!
-# Sørg for at DNS-records peker til din Hetzner-IP.
+# Dashboard:  http://46.225.176.106:8080 → Express (:3001)
+# Stats:      http://46.225.176.106:8081  (trackday)
+#             http://46.225.176.106:8082  (mx5cup)
+#             http://46.225.176.106:8083  (gt3)

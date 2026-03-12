@@ -1,46 +1,168 @@
-# AssettoServer – Trackday (Nordschleife) Extra Config
+# AssettoServer - Trackday (Nordschleife Touristenfahrten) Extra Config
 
-# ── AI TRAFFIC ────────────────────────────────────────────────
+# -- Topp-niva flagg --
+EnableAi: true
+EnableWeatherFx: true
+EnableClientMessages: true
+EnableUdpClientMessages: true
+EnableCustomUpdate: true
+
+# -- Plugins --
+EnablePlugins:
+  - AutoModerationPlugin
+  - RandomWeatherPlugin
+
+# -- AI trafikk --
+# Nordschleife turistkjoring - realistisk blandet trafikk
 AiParams:
-  Enabled: true
-  AiPerPlayerCount: 3          # 3 AI per aktiv spiller
-  MaxAiTargetCount: 20         # Maks 20 AI-biler totalt
-  MinAiSafetyDistanceMeters: 20
-  Behavior: TrafficMode        # Kjører som turister, ikke racere
-  HideAiBeyondDistanceM: 380   # Skjul AI langt unna (spar CPU)
-  SplineWeightFilter: 0.5
+  MaxAiTargetCount: 24
+  AiPerPlayerTargetCount: 12
+  HideAiCars: true
+  NamePrefix: Traffic
+  MaxSpeedKph: 110
+  RightLaneOffsetKph: 15
+  MaxSpeedVariationPercent: 0.15
+  CorneringSpeedFactor: 0.65
+  MinAiSafetyDistanceMeters: 25
+  MaxAiSafetyDistanceMeters: 90
+  TwoWayTraffic: false
+  WrongWayTraffic: false
+  EnableDaytimeLights: true
+  IgnoreObstaclesAfterSeconds: 15
+  PlayerRadiusMeters: 300
+  PlayerPositionOffsetMeters: 200
+  MaxSpawnDistancePoints: 600
+  SpawnSafetyDistanceToPlayerMeters: 200
+  StateSpawnDistanceMeters: 1500
+  MinStateDistanceMeters: 300
+  # Daglig trafikksyklus: stille natt, travel dag, rolig kveld
+  # Krever TIME_OF_DAY_MULT > 0 i server_cfg.ini
+  HourlyTrafficDensity:
+    - 0.3   # 00:00
+    - 0.25  # 01:00
+    - 0.2   # 02:00
+    - 0.2   # 03:00
+    - 0.2   # 04:00
+    - 0.3   # 05:00
+    - 0.4   # 06:00
+    - 0.55  # 07:00
+    - 0.7   # 08:00
+    - 0.85  # 09:00
+    - 1.0   # 10:00 - rushet
+    - 0.9   # 11:00
+    - 0.8   # 12:00
+    - 0.85  # 13:00
+    - 1.0   # 14:00 - ettermiddagsrush
+    - 0.9   # 15:00
+    - 0.8   # 16:00
+    - 0.65  # 17:00
+    - 0.5   # 18:00
+    - 0.4   # 19:00
+    - 0.35  # 20:00
+    - 0.3   # 21:00
+    - 0.3   # 22:00
+    - 0.3   # 23:00
+  # Per-bil hastighet: fra treg turist til rask lokalkjent (18 modeller)
+  CarSpecificOverrides:
+    - Model: abarth500
+      CorneringSpeedFactor: 0.42
+      Acceleration: 1.5
+      Deceleration: 6.0
+    - Model: ks_abarth_595ss
+      CorneringSpeedFactor: 0.48
+      Acceleration: 1.7
+      Deceleration: 6.5
+    - Model: alfa_romeo_giulietta_qv
+      CorneringSpeedFactor: 0.53
+      Acceleration: 2.0
+      Deceleration: 7.0
+    - Model: ks_audi_tt_cup
+      CorneringSpeedFactor: 0.58
+      Acceleration: 2.2
+      Deceleration: 7.5
+    - Model: ks_mazda_mx5_nd
+      CorneringSpeedFactor: 0.60
+      Acceleration: 2.3
+      Deceleration: 7.5
+    - Model: ks_toyota_gt86
+      CorneringSpeedFactor: 0.63
+      Acceleration: 2.5
+      Deceleration: 8.0
+    - Model: ks_nissan_370z
+      CorneringSpeedFactor: 0.65
+      Acceleration: 2.5
+      Deceleration: 8.0
+    - Model: ks_mazda_rx7_spirit_r
+      CorneringSpeedFactor: 0.68
+      Acceleration: 2.6
+      Deceleration: 8.0
+    - Model: ks_ford_mustang_2015
+      CorneringSpeedFactor: 0.70
+      Acceleration: 2.7
+      Deceleration: 8.5
+    - Model: lotus_elise_sc
+      CorneringSpeedFactor: 0.70
+      Acceleration: 2.7
+      Deceleration: 8.5
+    - Model: bmw_m3_e30
+      CorneringSpeedFactor: 0.72
+      Acceleration: 2.8
+      Deceleration: 8.5
+    - Model: lotus_exige_s
+      CorneringSpeedFactor: 0.75
+      Acceleration: 2.9
+      Deceleration: 9.0
+    - Model: bmw_m3_e92
+      CorneringSpeedFactor: 0.78
+      Acceleration: 3.0
+      Deceleration: 9.0
+    - Model: ks_corvette_c7_stingray
+      CorneringSpeedFactor: 0.78
+      Acceleration: 3.0
+      Deceleration: 9.0
+    - Model: ks_bmw_m4
+      CorneringSpeedFactor: 0.80
+      Acceleration: 3.2
+      Deceleration: 9.5
+    - Model: ks_porsche_718_cayman_s
+      CorneringSpeedFactor: 0.82
+      Acceleration: 3.3
+      Deceleration: 9.5
+    - Model: ks_ferrari_488_gtb
+      CorneringSpeedFactor: 0.85
+      Acceleration: 3.4
+      Deceleration: 10.0
+    - Model: ks_porsche_911_gt3_r_2016
+      CorneringSpeedFactor: 0.88
+      Acceleration: 3.5
+      Deceleration: 10.0
 
-PlayerAiSlots:
-  Enabled: true
-  MinPlayerCount: 5            # Under 5 spillere = AI fyller opp
-
-# ── SOL / DYNAMISK VÆR ───────────────────────────────────────
-WeatherFxPlugin:
-  Enabled: true
-  StartTime: 16:30             # Golden hour – sen ettermiddag
-  StartWeatherType: 3          # Varierende
-  TimeMultiplier: 2            # 2x tidsfart – nyt solnedgangen
-  SyncWeatherWithClients: true # Alle ser nøyaktig samme vær
-  RainChance: 0.35             # 35% sjanse for regn
-  FogChance: 0.25              # 25% sjanse for tåke
-
-# ── REAL PENALTY ─────────────────────────────────────────────
-RealPenaltyPlugin:
-  Enabled: true
-  TrackLimitsEnabled: false    # Ingen track limits på TF
-  IncidentRating: true         # Spor ulykker og aggressiv kjøring
-
-# ── CHECKSUMS (mod-validering) ────────────────────────────────
-# Sett til true hvis du vil tvinge eksakt mod-versjon
-# For trackday er dette valgfritt da biler er mer åpne
-ChecksumEnabled: false
-
-# ── STRACKER INTEGRASJON ──────────────────────────────────────
-EnableStracker: true
-StrackerPort: 50041
-
-# ── EKSTRA FEATURES ───────────────────────────────────────────
-# CSP: RubberFX og dynamic surface (krever Patreon CSP)
-ExtraHudEnabled: true
-DynamicTrackSurface: true
-RubberFxEnabled: true
+# -- Dynamisk vaer --
+# Nordschleife-vaer: varierende, med taake og regn som overrasker
+# Vekter: 0=aldri, 1=normal, 2=dobbelt sjanse
+--- !RandomWeatherConfiguration
+WeatherWeights:
+  Clear: 2.0
+  FewClouds: 2.0
+  ScatteredClouds: 1.5
+  BrokenClouds: 1.0
+  OvercastClouds: 0.8
+  Mist: 1.0
+  Fog: 1.2
+  LightDrizzle: 0.8
+  LightRain: 0.7
+  Rain: 0.4
+  HeavyRain: 0.2
+  LightThunderstorm: 0.1
+  Thunderstorm: 0.0
+  HeavyThunderstorm: 0.0
+  Hurricane: 0.0
+  Tornado: 0.0
+  Hail: 0.0
+  Snow: 0.0
+  LightSnow: 0.0
+  HeavySnow: 0.0
+MinWeatherDurationMinutes: 10
+MaxWeatherDurationMinutes: 30
+MinTransitionDurationSeconds: 120
+MaxTransitionDurationSeconds: 360

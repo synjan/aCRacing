@@ -26,3 +26,20 @@ desktop.ini
 
 # Node
 node_modules/
+
+# Vite build output
+web/dist/
+
+# Midlertidige filer
+temp/
+*.zip
+
+# Claude Code
+.claude/
+
+# Store asset-filer
+ac_assets/
+
+# Løse filer som ikke trengs i repo
+iracing-ui.jsx
+stats-mx5cup.png

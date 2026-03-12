@@ -3,41 +3,514 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AC Servere</title>
+<title>aCRacing — Serveroversikt</title>
 <style>
-  body { font-family: system-ui, sans-serif; background: #1a1a2e; color: #eee; margin: 0; padding: 40px; }
-  h1 { text-align: center; margin-bottom: 40px; }
-  .servers { max-width: 600px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
-  .server { background: #16213e; border-radius: 12px; padding: 24px; }
-  .server h2 { margin: 0 0 8px; font-size: 1.3em; }
-  .server p { margin: 4px 0; color: #aaa; font-size: 0.9em; }
-  .sessions { margin-top: 8px; font-size: 0.85em; color: #7a8ba8; }
-  .sessions span { margin-right: 12px; }
-  a.join { display: inline-block; margin-top: 12px; padding: 10px 24px; background: #e94560; color: #fff; text-decoration: none; border-radius: 8px; font-weight: bold; }
-  a.join:hover { background: #c73750; }
+  :root {
+    --bg: #191919; --card: #252525; --border: #333;
+    --text: #e0e0e0; --dim: #888; --accent: #e04040;
+    --green: #4ade80; --blue: #60a5fa; --yellow: #facc15; --purple: #c084fc;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; -webkit-font-smoothing: antialiased; }
+  a { color: var(--blue); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .page { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem 3rem; }
+  .page-title { font-size: 1.6rem; font-weight: 700; letter-spacing: -0.02em; }
+  .page-subtitle { color: var(--dim); font-size: 0.82rem; margin-bottom: 1.5rem; }
+  h2 { font-size: 1.1rem; font-weight: 600; margin: 1.8rem 0 0.6rem; padding-bottom: 0.3rem; border-bottom: 1px solid var(--border); }
+  code { font-family: 'Consolas', monospace; font-size: 0.8rem; background: rgba(255,255,255,0.06); padding: 1px 4px; border-radius: 3px; }
+
+  .server-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.8rem; margin: 0.6rem 0; }
+  .server-card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.1rem; font-size: 0.82rem; position: relative; }
+  .server-card h3 { font-size: 0.95rem; font-weight: 600; margin-bottom: 0.15rem; }
+  .server-meta { color: var(--dim); font-size: 0.78rem; margin-bottom: 0.5rem; }
+  .badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; margin-left: 0.4rem; vertical-align: middle; }
+  .badge.practice { background: rgba(192,132,252,0.15); color: var(--purple); }
+  .badge.race { background: rgba(74,222,128,0.15); color: var(--green); }
+
+  .props { display: grid; grid-template-columns: auto 1fr; gap: 0.1rem 0.6rem; font-size: 0.78rem; margin: 0.4rem 0; }
+  .props dt { color: var(--dim); white-space: nowrap; }
+  .props dd { font-family: 'Consolas', monospace; font-size: 0.76rem; }
+
+  .tag { display: inline-block; padding: 0 5px; border-radius: 3px; font-size: 0.7rem; font-weight: 500; }
+  .tag.on { background: rgba(74,222,128,0.12); color: var(--green); }
+  .tag.off { background: rgba(248,113,113,0.12); color: #f87171; }
+
+  .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 0.3rem; vertical-align: middle; }
+  .status-dot.online { background: var(--green); box-shadow: 0 0 4px var(--green); }
+  .status-dot.offline { background: #f87171; box-shadow: 0 0 4px #f87171; }
+  .status-dot.loading { background: var(--yellow); animation: pulse 1.2s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 0.4; } 50% { opacity: 1; } }
+
+  .players-badge { display: inline-block; padding: 1px 7px; border-radius: 3px; font-size: 0.72rem; font-weight: 600; font-family: 'Consolas', monospace; margin-left: 0.3rem; vertical-align: middle; }
+  .players-badge.empty { background: rgba(255,255,255,0.05); color: var(--dim); }
+  .players-badge.active { background: rgba(74,222,128,0.15); color: var(--green); }
+
+  .session-bar { margin-top: 0.5rem; padding: 0.35rem 0.5rem; border-radius: 4px; font-size: 0.72rem; font-family: 'Consolas', monospace; display: flex; justify-content: space-between; align-items: center; }
+  .session-bar.practice-bg { background: rgba(192,132,252,0.08); border: 1px solid rgba(192,132,252,0.15); }
+  .session-bar.qualify-bg { background: rgba(96,165,250,0.08); border: 1px solid rgba(96,165,250,0.15); }
+  .session-bar.race-bg { background: rgba(74,222,128,0.08); border: 1px solid rgba(74,222,128,0.15); }
+
+  .join-btn { display: inline-block; margin-top: 0.5rem; padding: 0.3rem 0.8rem; background: rgba(224,64,64,0.12); border: 1px solid rgba(224,64,64,0.25); color: var(--accent); border-radius: 5px; font-size: 0.78rem; font-weight: 600; text-decoration: none; }
+  .join-btn:hover { background: rgba(224,64,64,0.2); text-decoration: none; }
+
+  .callout { display: flex; gap: 0.5rem; padding: 0.6rem 0.8rem; border-radius: 5px; margin: 0.3rem 0; font-size: 0.78rem; line-height: 1.4; }
+  .callout-icon { flex-shrink: 0; }
+  .callout.warn { background: rgba(250,204,21,0.08); border: 1px solid rgba(250,204,21,0.15); }
+
+  details { background: var(--card); border: 1px solid var(--border); border-radius: 5px; margin: 0.35rem 0; }
+  summary { padding: 0.5rem 0.8rem; cursor: pointer; font-weight: 500; font-size: 0.84rem; list-style: none; }
+  summary::before { content: '\25B6'; display: inline-block; margin-right: 0.4rem; font-size: 0.6rem; transition: transform 0.15s; color: var(--dim); }
+  details[open] summary::before { transform: rotate(90deg); }
+  summary::-webkit-details-marker { display: none; }
+  .tc { padding: 0 0.8rem 0.7rem; font-size: 0.8rem; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+  th { text-align: left; padding: 0.3rem 0.5rem; border-bottom: 1px solid var(--border); color: var(--dim); font-weight: 500; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; }
+  td { padding: 0.3rem 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.04); }
+  tr:last-child td { border-bottom: none; }
+  pre { background: #161616; border: 1px solid var(--border); border-radius: 5px; padding: 0.6rem 0.8rem; font-family: 'Consolas', monospace; font-size: 0.76rem; overflow-x: auto; line-height: 1.5; margin: 0.3rem 0; }
+  .callout-sm { display: flex; gap: 0.4rem; padding: 0.5rem 0.7rem; border-radius: 5px; font-size: 0.76rem; line-height: 1.4; background: rgba(96,165,250,0.08); border: 1px solid rgba(96,165,250,0.12); margin: 0.3rem 0; }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; }
+  .two-col h3 { font-size: 0.88rem; margin: 0 0 0.3rem; }
+  hr { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0; }
+  .footer { font-size: 0.7rem; color: #555; text-align: center; }
+  .refresh-bar { display: flex; align-items: center; gap: 0.5rem; font-size: 0.72rem; color: var(--dim); margin-top: 0.4rem; }
+  .refresh-bar button { background: rgba(255,255,255,0.06); border: 1px solid var(--border); color: var(--dim); padding: 2px 8px; border-radius: 3px; font-size: 0.7rem; cursor: pointer; font-family: inherit; }
+  .refresh-bar button:hover { background: rgba(255,255,255,0.1); color: var(--text); }
+  @media (max-width: 800px) { .server-grid, .two-col { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
-  <h1>AC Servere</h1>
-  <div class="servers">
-    <div class="server">
-      <h2>Nordschleife Touristenfahrten</h2>
-      <p>Fri kjøring - AI trafikk - Sol dynamisk ver</p>
-      <div class="sessions"><span>Praksis: ubegrenset</span></div>
-      <a class="join" href="acmanager://race/online/join?ip=46.225.176.106&httpPort=9680">Koble til</a>
+<div class="page">
+
+<h1 class="page-title">aCRacing Serveroversikt</h1>
+<p class="page-subtitle">Admin &mdash; Hetzner CX32 &mdash; 46.225.176.106 &mdash; AssettoServer 0.0.54</p>
+<div style="display:flex;gap:0.6rem;flex-wrap:wrap;margin-bottom:0.8rem">
+  <a href="http://46.225.176.106:8080" target="_blank" class="join-btn" style="font-size:0.76rem">Dashboard &#x2197;</a>
+  <a href="http://46.225.176.106:8081" target="_blank" class="join-btn" style="font-size:0.76rem;background:rgba(96,165,250,0.12);border-color:rgba(96,165,250,0.25);color:var(--blue)">Stracker Stats &#x2197;</a>
+  <a href="http://46.225.176.106:8772" target="_blank" class="join-btn" style="font-size:0.76rem;background:rgba(74,222,128,0.12);border-color:rgba(74,222,128,0.25);color:var(--green)">Live Timings &#x2197;</a>
+</div>
+
+<!-- ═══ SERVERE ═══ -->
+<h2>Servere</h2>
+<div class="refresh-bar">
+  <span id="last-update">Laster...</span>
+  <button onclick="refreshAll()">Oppdater</button>
+  <span>Auto-oppdatering hvert 15s</span>
+</div>
+<div class="server-grid">
+
+  <!-- ── Trackday ── -->
+  <div class="server-card" id="card-trackday">
+    <h3>
+      <span class="status-dot loading" id="status-trackday"></span>
+      Nordschleife TF <span class="badge practice">Practice</span>
+      <span class="players-badge empty" id="players-trackday">-/-</span>
+    </h3>
+    <p class="server-meta">AI-trafikk &middot; dynamisk vaer</p>
+    <dl class="props">
+      <dt>Port</dt><dd>9600 &middot; <a href="http://46.225.176.106:9680/INFO" target="_blank">9680</a></dd>
+      <dt>Bane</dt><dd id="track-trackday">touristenfahrten_ai</dd>
+      <dt>Biler</dt><dd id="cars-trackday">7 Kunos &middot; 24 plasser</dd>
+      <dt>AI</dt><dd><span class="tag on">20 maks</span> 80 kph</dd>
+      <dt>Vaer</dt><dd><span class="tag on">Random</span> 10-30 min</dd>
+    </dl>
+    <div id="session-trackday"></div>
+    <div class="callout warn">
+      <span class="callout-icon">&#x26A0;&#xFE0F;</span>
+      <div><strong>Mod:</strong> <a href="https://www.overtake.gg/downloads/nordschleife-tourist-with-ai.15676/" style="color:var(--yellow)">Tourist with AI v1.1</a></div>
     </div>
-    <div class="server">
-      <h2>Formula Series 2026</h2>
-      <p>Tatuus FA1 - Roterende baner - Track limits</p>
-      <div class="sessions"><span>Kvali: 8 min</span><span>Race: 15 min</span><span>Back-to-back</span></div>
-      <a class="join" href="acmanager://race/online/join?ip=46.225.176.106&httpPort=9690">Koble til</a>
-    </div>
-    <div class="server">
-      <h2>Roadcar Series</h2>
-      <p>Kun Kunos biler - Roterende baner - Race Control</p>
-      <div class="sessions"><span>Kvali: 8 min</span><span>Race: 15 min</span><span>Back-to-back</span></div>
-      <a class="join" href="acmanager://race/online/join?ip=46.225.176.106&httpPort=9700">Koble til</a>
+    <a class="join-btn" href="acmanager://race/online/join?ip=46.225.176.106&httpPort=9680">Koble til</a>
+    <a href="http://46.225.176.106:8081" target="_blank" style="font-size:0.72rem;margin-left:0.5rem;color:var(--blue)">Statistikk &#x2197;</a>
+  </div>
+
+  <!-- ── MX-5 Cup ── -->
+  <div class="server-card" id="card-mx5cup">
+    <h3>
+      <span class="status-dot loading" id="status-mx5cup"></span>
+      MX-5 Cup 2026 <span class="badge race">Race</span>
+      <span class="players-badge empty" id="players-mx5cup">-/-</span>
+    </h3>
+    <p class="server-meta">Mazda MX-5 Cup &middot; daglig rotasjon 06:00</p>
+    <dl class="props">
+      <dt>Port</dt><dd>9610 &middot; <a href="http://46.225.176.106:9690/INFO" target="_blank">9690</a></dd>
+      <dt>Bane</dt><dd id="track-mx5cup">Laster...</dd>
+      <dt>Biler</dt><dd id="cars-mx5cup">ks_mazda_mx5_cup &middot; 20 plasser</dd>
+      <dt>Sesjon</dt><dd>Kvali 5m &rarr; Race 5 rd</dd>
+      <dt>AI</dt><dd><span class="tag off">AV</span></dd>
+    </dl>
+    <div id="session-mx5cup"></div>
+    <a class="join-btn" href="acmanager://race/online/join?ip=46.225.176.106&httpPort=9690">Koble til</a>
+    <a href="http://46.225.176.106:8082" target="_blank" style="font-size:0.72rem;margin-left:0.5rem;color:var(--blue)">Statistikk &#x2197;</a>
+  </div>
+
+  <!-- ── GT3 ── -->
+  <div class="server-card" id="card-gt3">
+    <h3>
+      <span class="status-dot loading" id="status-gt3"></span>
+      GT3 Series 2026 <span class="badge race">Race</span>
+      <span class="players-badge empty" id="players-gt3">-/-</span>
+    </h3>
+    <p class="server-meta">10 GT3-biler &middot; daglig rotasjon 06:00</p>
+    <dl class="props">
+      <dt>Port</dt><dd>9620 &middot; <a href="http://46.225.176.106:9700/INFO" target="_blank">9700</a></dd>
+      <dt>Bane</dt><dd id="track-gt3">Laster...</dd>
+      <dt>Biler</dt><dd id="cars-gt3">10 GT3 &middot; 20 plasser</dd>
+      <dt>Sesjon</dt><dd>Kvali 8m &rarr; Race 8 rd</dd>
+      <dt>AI</dt><dd><span class="tag off">AV</span></dd>
+    </dl>
+    <div id="session-gt3"></div>
+    <a class="join-btn" href="acmanager://race/online/join?ip=46.225.176.106&httpPort=9700">Koble til</a>
+    <a href="http://46.225.176.106:8083" target="_blank" style="font-size:0.72rem;margin-left:0.5rem;color:var(--blue)">Statistikk &#x2197;</a>
+  </div>
+
+</div>
+
+<!-- ═══ KJENTE PROBLEMER ═══ -->
+<h2>Kjente problemer</h2>
+
+<div class="callout warn" style="margin-bottom:0.4rem">
+  <span class="callout-icon">&#x1F6A8;</span>
+  <div><strong>stracker-trackday er nede.</strong> Mangler <code>UDP_PLUGIN_ADDRESS</code> i <code>/opt/ac-trackday/cfg/server_cfg.ini</code>. Stracker krever denne for a motta hendelser fra AC-serveren. Fix: legg til <code>UDP_PLUGIN_ADDRESS=127.0.0.1:11000</code> under <code>[SERVER]</code> og restart: <code>systemctl restart stracker-trackday</code>. Strackerloggen viser ogsa ugyldig <code>listening_port</code>.</div>
+</div>
+
+<div class="callout-sm" style="margin-bottom:0.4rem">
+  <span>&#x2139;&#xFE0F;</span>
+  <div><strong>stracker-mx5cup og stracker-gt3 fungerer</strong> og har testdata (147 og 186 runder). Tilgjengelig via <a href="http://46.225.176.106:8082" target="_blank">:8081/mx5cup</a> og <a href="http://46.225.176.106:8083" target="_blank">:8081/gt3</a>.</div>
+</div>
+
+<div class="callout-sm" style="margin-bottom:0.4rem">
+  <span>&#x1F4CA;</span>
+  <div><strong>Testdata i stracker-databaser.</strong> 8 fiktive spillere, realistiske rundetider. Trackday: 106 runder (Nordschleife 7:26–9:30). MX-5 Cup: 147 runder (Laguna Seca 1:36–1:48). GT3: 186 runder (Spa 2:16–2:35). Kan regenereres med <code>scripts/generate_stracker_testdata.py</code> og deployes med <code>scripts/deploy_testdata.sh</code>.</div>
+</div>
+
+<!-- ═══ REFERANSE ═══ -->
+<h2>Referanse</h2>
+
+<details>
+  <summary>Banerotasjon (cron 06:00)</summary>
+  <div class="tc">
+    <div class="two-col">
+      <div>
+        <h3>MX-5 Cup (4 baner)</h3>
+        <table><tr><th>Dag</th><th>Bane</th></tr>
+        <tr><td>Ma</td><td>Lime Rock Park (no chicane)</td></tr><tr><td>Ti</td><td>Laguna Seca</td></tr><tr><td>On</td><td>Okayama International</td></tr><tr><td>To</td><td>Summit Point</td></tr><tr><td>Fr</td><td>Lime Rock Park (no chicane)</td></tr><tr><td>Lo</td><td>Laguna Seca</td></tr><tr><td>So</td><td>Okayama International</td></tr></table>
+      </div>
+      <div>
+        <h3>GT3 (6 baner)</h3>
+        <table><tr><th>Dag</th><th>Bane</th></tr>
+        <tr><td>Ma</td><td>Road America</td></tr><tr><td>Ti</td><td>Spa (2022)</td></tr><tr><td>On</td><td>Sebring (raceday standing)</td></tr><tr><td>To</td><td>Watkins Glen (boot)</td></tr><tr><td>Fr</td><td>Road Atlanta (grandprix)</td></tr><tr><td>Lo</td><td>Zandvoort</td></tr><tr><td>So</td><td>Road America</td></tr></table>
+      </div>
     </div>
   </div>
+</details>
+
+<details>
+  <summary>Deploy og drift</summary>
+  <div class="tc">
+<pre># Deploy konfig (srv = trackday | mx5cup | gt3)
+scp {srv}/cfg/server_cfg.ini root@46.225.176.106:/opt/ac-{srv}/cfg/
+scp {srv}/cfg/entry_list.ini root@46.225.176.106:/opt/ac-{srv}/cfg/
+scp {srv}/extra/extra_cfg.yml root@46.225.176.106:/opt/ac-{srv}/
+
+# Deploy stracker-konfig
+scp stracker/{srv}/stracker.ini root@46.225.176.106:/opt/stracker/{srv}/
+
+# Restart / Logger
+systemctl restart ac-{srv} stracker-{srv}
+journalctl -u ac-{srv} --no-pager -n 30
+
+# Restart alle
+systemctl restart ac-trackday ac-mx5cup ac-gt3
+systemctl restart stracker-trackday stracker-mx5cup stracker-gt3
+
+# Deploy banerotasjon
+scp scripts/rotate_tracks.sh root@46.225.176.106:/opt/scripts/
+
+# Deploy React-dashboard (bygg lokalt, kopier til server)
+cd web && npm run build
+scp -r web/dist/. root@46.225.176.106:/opt/www/
+
+# Deploy Caddyfile
+scp caddy/Caddyfile root@46.225.176.106:/etc/caddy/Caddyfile
+systemctl reload caddy</pre>
+    <p style="color:var(--dim);margin-top:0.4rem">Tjenester: <code>ac-trackday</code>, <code>ac-mx5cup</code>, <code>ac-gt3</code>, <code>stracker-trackday</code>, <code>stracker-mx5cup</code>, <code>stracker-gt3</code>.</p>
+  </div>
+</details>
+
+<details>
+  <summary>Filstruktur (repo &rarr; server)</summary>
+  <div class="tc">
+<pre># AC-server konfig
+{srv}/cfg/server_cfg.ini     &rarr;  /opt/ac-{srv}/cfg/
+{srv}/cfg/entry_list.ini     &rarr;  /opt/ac-{srv}/cfg/
+{srv}/extra/extra_cfg.yml    &rarr;  /opt/ac-{srv}/
+
+# Stracker konfig + database
+stracker/{srv}/stracker.ini  &rarr;  /opt/stracker/{srv}/
+                                   /opt/stracker/{srv}/stracker.db3  (SQLite)
+
+# Stracker kildekode + venv
+/opt/stracker/src/           &rarr;  GitHub: gregsqueeb/S-P-Tracker
+/opt/stracker/venv/          &rarr;  Python 3.12 virtualenv
+
+# Bil-data (checksum)
+data.acd per bil             &rarr;  /opt/ac-{srv}/content/cars/{bil}/data.acd
+
+# Scripts + web
+scripts/rotate_tracks.sh     &rarr;  /opt/scripts/
+web/dist/                    &rarr;  /opt/www/          (React dashboard, bygget med Vite)
+caddy/Caddyfile              &rarr;  /etc/caddy/Caddyfile</pre>
+  </div>
+</details>
+
+<details>
+  <summary>extra_cfg.yml format (v0.0.54)</summary>
+  <div class="tc">
+    <div class="callout-sm"><span>&#x2139;&#xFE0F;</span> <span>Flate top-level flagg. Gamle nokkler (<code>Behavior</code>, <code>AiSkillLevel</code>, <code>RealPenaltyPlugin</code>, <code>RaceControlPlugin</code>) finnes IKKE.</span></div>
+<pre>EnableAi: true
+EnableWeatherFx: true
+EnablePlugins:
+  - AutoModerationPlugin
+AiParams:
+  MaxAiTargetCount: 20
+  MaxSpeedKph: 80
+--- !RandomWeatherConfiguration
+WeatherWeights:
+  Clear: 2.0</pre>
+  </div>
+</details>
+
+<details>
+  <summary>Plugins</summary>
+  <div class="tc">
+    <table><tr><th>Plugin</th><th>Status</th><th>Beskrivelse</th></tr>
+    <tr><td>AutoModerationPlugin</td><td><span class="tag on">Aktiv</span></td><td>AFK kick, feilkjoring</td></tr>
+    <tr><td>RandomWeatherPlugin</td><td><span class="tag on">Trackday</span></td><td>Tilfeldig vaer</td></tr>
+    <tr><td>LiveWeatherPlugin</td><td><span class="tag off">Klar</span></td><td>Ekte vaer (API-nokkel)</td></tr>
+    <tr><td>VotingWeatherPlugin</td><td><span class="tag off">Klar</span></td><td>Spillerstyrt vaer</td></tr>
+    <tr><td>TimeDilationPlugin</td><td><span class="tag off">Klar</span></td><td>Tidsakselerasjon</td></tr>
+    <tr><td>DiscordAuditPlugin</td><td><span class="tag off">Klar</span></td><td>Discord-logging</td></tr>
+    </table>
+  </div>
+</details>
+
+<details>
+  <summary>Viktig a vite</summary>
+  <div class="tc">
+    <div class="callout-sm"><span>&#x1F916;</span> <span><strong>AI = kun Practice (MODE=1).</strong> Race-modus gir "no AI slots available".</span></div>
+    <div class="callout-sm"><span>&#x1F4C1;</span> <span><strong>AI splines:</strong> Leter alltid i <code>tracks/{bane}/ai/</code>, ignorerer CONFIG_TRACK.</span></div>
+    <div class="callout-sm"><span>&#x1F4E8;</span> <span><strong>WELCOME_MESSAGE</strong> = filsti, ikke tekst. Sett tom.</span></div>
+    <div class="callout-sm"><span>&#x1F512;</span> <span><strong>data.acd (checksum):</strong> Hver bil trenger <code>content/cars/{bil}/data.acd</code> pa serveren. Kopier fra lokal AC-installasjon: <code>scp "C:/.../assettocorsa/content/cars/{bil}/data.acd" root@SERVER:/opt/ac-{srv}/content/cars/{bil}/</code></span></div>
+    <div class="callout-sm"><span>&#x1F30D;</span> <span><strong>Tidssoner for mod-baner:</strong> Nye baner trenger gyldig IANA-tidssone i <code>cfg/data_track_params.ini</code>. Uten dette crasher serveren med "Invalid time zone".</span></div>
+    <div class="callout-sm"><span>&#x1F50C;</span> <span><strong>UDP_PLUGIN_ADDRESS</strong> ma settes i <code>server_cfg.ini</code> for at stracker skal motta hendelser fra AC-serveren.</span></div>
+  </div>
+</details>
+
+<details>
+  <summary>Stracker</summary>
+  <div class="tc">
+    <div class="callout-sm"><span>&#x1F4CA;</span> <span>Kildekode: <a href="https://github.com/gregsqueeb/S-P-Tracker">github.com/gregsqueeb/S-P-Tracker</a>. Klonet til <code>/opt/stracker/src/</code>, kjorer i Python 3.12 venv.</span></div>
+    <p style="margin:0.4rem 0 0.2rem;font-weight:600">Python 3.12-patcher (allerede utfort):</p>
+    <ul style="font-size:0.76rem;padding-left:1.2rem;margin-bottom:0.4rem">
+      <li><code>externals/pygal/_compat.py</code>: <code>collections.Iterable</code> &rarr; <code>collections.abc.Iterable</code></li>
+      <li><code>ptracker_lib/async_worker.py</code> + <code>database.py</code>: <code>async</code> &rarr; <code>is_async</code> (reservert nkw i Python 3.7+)</li>
+      <li><code>stracker.py</code>: <code>PostgresqlBackend</code> import wrappet i try/except (psycopg2 ikke installert)</li>
+      <li><code>setuptools &lt; 71</code> pakreves for <code>pkg_resources</code></li>
+    </ul>
+    <p style="margin:0.4rem 0 0.2rem;font-weight:600">Konfig-format:</p>
+<pre>[STRACKER_CONFIG]
+ac_server_cfg_ini = /opt/ac-{srv}/cfg/server_cfg.ini
+listening_port = {TCP_PORT + 42}
+server_name = {srv}
+
+[DATABASE]
+database_type = sqlite3
+database_file = /opt/stracker/{srv}/stracker.db3
+
+[HTTP_CONFIG]
+enabled = True
+listen_port = {50041|50042|50043}
+listen_addr = 127.0.0.1</pre>
+  </div>
+</details>
+
+<details>
+  <summary>Porter</summary>
+  <div class="tc">
+    <table><tr><th>Tjeneste</th><th>TCP/UDP</th><th>HTTP</th><th>UDP Plugin</th></tr>
+    <tr><td>Trackday</td><td>9600</td><td><a href="http://46.225.176.106:9680/INFO" target="_blank">9680</a></td><td>11000/11001</td></tr>
+    <tr><td>MX-5 Cup</td><td>9610</td><td><a href="http://46.225.176.106:9690/INFO" target="_blank">9690</a></td><td>11010/11011</td></tr>
+    <tr><td>GT3</td><td>9620</td><td><a href="http://46.225.176.106:9700/INFO" target="_blank">9700</a></td><td>11020/11021</td></tr>
+    </table>
+    <table style="margin-top:0.5rem"><tr><th>Stracker</th><th>HTTP (stats)</th><th>ptracker port</th></tr>
+    <tr><td>stracker-trackday</td><td>50041 (127.0.0.1)</td><td>9642 (TCP+42)</td></tr>
+    <tr><td>stracker-mx5cup</td><td>50042 (127.0.0.1)</td><td>9652 (TCP+42)</td></tr>
+    <tr><td>stracker-gt3</td><td>50043 (127.0.0.1)</td><td>9662 (TCP+42)</td></tr>
+    </table>
+    <table style="margin-top:0.5rem"><tr><th>Caddy (reverse proxy)</th><th>Port</th><th>Mål</th></tr>
+    <tr><td><a href="http://46.225.176.106:8080" target="_blank">Dashboard</a></td><td>8080</td><td>/opt/www + API-proxy</td></tr>
+    <tr><td><a href="http://46.225.176.106:8081" target="_blank">Stracker trackday</a></td><td>8081</td><td>localhost:50041</td></tr>
+    <tr><td><a href="http://46.225.176.106:8082" target="_blank">Stracker mx5cup</a></td><td>8082</td><td>localhost:50042</td></tr>
+    <tr><td><a href="http://46.225.176.106:8083" target="_blank">Stracker gt3</a></td><td>8083</td><td>localhost:50043</td></tr>
+    <tr><td>AC Live Timings</td><td>8772</td><td>Node.js app</td></tr>
+    </table>
+  </div>
+</details>
+
+<hr>
+<p class="footer">aCRacing &mdash; Hetzner CX32 &mdash; Ubuntu 24.04 &mdash; mars 2026 &mdash; Sist deployet: 11. mars 2026</p>
+
+</div>
+
+<script>
+// ═══ KONFIGURASJON ═══════════════════════════════════════════
+const SERVERS = [
+  { id: 'trackday', httpPort: 9680 },
+  { id: 'mx5cup',   httpPort: 9690 },
+  { id: 'gt3',      httpPort: 9700 },
+];
+const SERVER_IP = '46.225.176.106';
+const REFRESH_INTERVAL = 15000;
+
+// API via relativ path – funker med serve.js lokalt og Caddy i prod
+function getApiUrl(srv) {
+  return `/api/${srv.id}`;
+}
+
+// ═══ BANENAVN ════════════════════════════════════════════════
+const TRACK_NAMES = {
+  'ks_nordschleife-touristenfahrten_ai': 'Nordschleife TF (AI)',
+  'ks_nordschleife': 'Nordschleife',
+  'rt_lime_rock_park-no_chicane': 'Lime Rock Park (no chicane)',
+  'rt_lime_rock_park': 'Lime Rock Park',
+  'ks_laguna_seca': 'Laguna Seca',
+  'okayama_international': 'Okayama International',
+  'summit_point': 'Summit Point',
+  'lilski_road_america': 'Road America',
+  'spa-2022': 'Spa (2022)',
+  'spa': 'Spa-Francorchamps',
+  'mx_sebring-raceday_standing': 'Sebring (raceday)',
+  'lilski_watkins_glen-boot': 'Watkins Glen (boot)',
+  'road_atlanta2018-grandprix': 'Road Atlanta (GP)',
+  'ks_zandvoort': 'Zandvoort',
+  'monza': 'Monza',
+  'ks_silverstone-gp': 'Silverstone GP',
+  'mugello': 'Mugello',
+  'ks_barcelona-layout_gp': 'Barcelona GP',
+  'ks_red_bull_ring-gp': 'Red Bull Ring GP',
+  'imola': 'Imola',
+  'ks_vallelunga-extended_circuit': 'Vallelunga Ext.',
+  'magione': 'Magione',
+};
+
+// Session-type: 1=Practice, 2=Qualifying, 3=Race
+const SESSION_NAMES = { 1: 'Practice', 2: 'Kvalifisering', 3: 'Race' };
+const SESSION_CSS   = { 1: 'practice-bg', 2: 'qualify-bg', 3: 'race-bg' };
+
+// ═══ HJELPEFUNKSJONER ═══════════════════════════════════════
+function trackDisplayName(raw) {
+  if (!raw) return '?';
+  if (TRACK_NAMES[raw]) return TRACK_NAMES[raw];
+  // Prøv å gjøre det lesbart: erstatt - med mellomrom, _ med mellomrom
+  return raw.replace(/-/g, ' — ').replace(/_/g, ' ');
+}
+
+function formatTime(ms) {
+  if (ms <= 0) return '0:00';
+  const totalSec = Math.floor(ms / 1000);
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+function sessionLabel(data) {
+  if (!data || !data.sessiontypes) return null;
+  const typeIdx = data.session;
+  if (typeIdx < 0 || typeIdx >= data.sessiontypes.length) return null;
+  const type = data.sessiontypes[typeIdx];
+  const name = SESSION_NAMES[type] || `Sesjon ${type}`;
+  const css = SESSION_CSS[type] || 'practice-bg';
+
+  let right = '';
+  if (data.timed && data.timeleft > 0) {
+    right = formatTime(data.timeleft);
+  } else if (!data.timed && data.durations && data.durations[typeIdx]) {
+    const dur = data.durations[typeIdx];
+    if (type === 3) {
+      // Race: durations er antall runder
+      right = `${dur} runder`;
+    } else {
+      // Tids-sesjon (i sekunder, men API gir det i sekunder * 1)
+      right = formatTime(data.timeleft);
+    }
+  }
+
+  return { name, css, right };
+}
+
+// ═══ OPPDATER SERVER-KORT ═══════════════════════════════════
+async function fetchServer(srv) {
+  const dot = document.getElementById(`status-${srv.id}`);
+  const playersEl = document.getElementById(`players-${srv.id}`);
+  const trackEl = document.getElementById(`track-${srv.id}`);
+  const carsEl = document.getElementById(`cars-${srv.id}`);
+  const sessionEl = document.getElementById(`session-${srv.id}`);
+
+  try {
+    const resp = await fetch(getApiUrl(srv), { signal: AbortSignal.timeout(5000) });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+
+    // Status: online
+    dot.className = 'status-dot online';
+
+    // Spillere
+    const c = data.clients || 0;
+    const m = data.maxclients || '?';
+    playersEl.textContent = `${c}/${m}`;
+    playersEl.className = c > 0 ? 'players-badge active' : 'players-badge empty';
+
+    // Bane
+    trackEl.textContent = trackDisplayName(data.track);
+
+    // Biler
+    if (data.cars) {
+      const count = data.cars.length;
+      if (count === 1) {
+        carsEl.textContent = `${data.cars[0]} \u00b7 ${m} plasser`;
+      } else {
+        carsEl.textContent = `${count} biler \u00b7 ${m} plasser`;
+      }
+    }
+
+    // Sesjon-bar
+    const sess = sessionLabel(data);
+    if (sess) {
+      sessionEl.innerHTML = `<div class="session-bar ${sess.css}"><span>${sess.name}</span><span>${sess.right}</span></div>`;
+    } else {
+      sessionEl.innerHTML = '';
+    }
+
+  } catch (e) {
+    dot.className = 'status-dot offline';
+    playersEl.textContent = 'NEDE';
+    playersEl.className = 'players-badge empty';
+    sessionEl.innerHTML = '';
+  }
+}
+
+function refreshAll() {
+  SERVERS.forEach(s => fetchServer(s));
+  document.getElementById('last-update').textContent =
+    'Sist oppdatert: ' + new Date().toLocaleTimeString('nb-NO');
+}
+
+// ═══ START ══════════════════════════════════════════════════
+refreshAll();
+setInterval(refreshAll, REFRESH_INTERVAL);
+</script>
+
 </body>
 </html>
