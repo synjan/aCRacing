@@ -616,6 +616,44 @@ app.get("/api/profile/:steamId/sessions", async (req, res) => {
   res.json({ sessions: paginated, total, page, limit });
 });
 
+// ── Personal records check (Tier 3) ─────────────────────────────────────────
+app.get("/api/profile/:steamId/records-check", (req, res) => {
+  const steamId = req.params.steamId;
+  if (!/^7656119\d{10}$/.test(steamId)) return res.status(400).json({ error: "Invalid Steam ID" });
+
+  const since = parseInt(req.query.since) || 0;
+  const newRecords = [];
+
+  for (const instance of VALID_INSTANCES) {
+    const db = getDb(instance);
+    if (!db) continue;
+    const player = db.prepare("SELECT PlayerId FROM Players WHERE SteamGuid = ? AND ArtInt = 0").get(steamId);
+    if (!player) continue;
+
+    const records = db.prepare(`
+      SELECT t.Track as track, c.UiCarName as car, l.LapTime as lapTime, l.Timestamp as timestamp
+      FROM Lap l
+      JOIN PlayerInSession pis ON l.PlayerInSessionId = pis.PlayerInSessionId
+      JOIN Session s ON pis.SessionId = s.SessionId
+      JOIN Tracks t ON s.TrackId = t.TrackId
+      JOIN Cars c ON pis.CarId = c.CarId
+      WHERE pis.PlayerId = ? AND l.Valid = 1 AND l.Timestamp > ?
+        AND l.LapTime = (
+          SELECT MIN(l2.LapTime) FROM Lap l2
+          JOIN PlayerInSession pis2 ON l2.PlayerInSessionId = pis2.PlayerInSessionId
+          JOIN Session s2 ON pis2.SessionId = s2.SessionId
+          WHERE pis2.PlayerId = ? AND s2.TrackId = s.TrackId AND l2.Valid = 1
+        )
+    `).all(player.PlayerId, since, player.PlayerId);
+
+    for (const r of records) {
+      newRecords.push({ ...r, server: instance });
+    }
+  }
+
+  res.json(newRecords);
+});
+
 // ── Player search (Tier 3) ───────────────────────────────────────────────────
 app.get("/api/search", (req, res) => {
   const q = (req.query.q || "").trim();
