@@ -242,6 +242,17 @@ export const STRINGS = {
     fastestLap: "Raskeste runde",
     noStandings: "Ingen poengdata",
     month: "M\u00e5ned",
+
+    // Notification settings
+    notificationSettings: "Varslingsinnstillinger",
+    minutesBefore: "Minutter f\u00f8r",
+    raceStartNotif: "Race starter",
+    qualifyEndNotif: "Kvalifisering slutter",
+    personalRecordNotif: "Ny personlig rekord",
+    quietHours: "Stille timer",
+    quietFrom: "Fra",
+    quietTo: "Til",
+    newRecord: "Ny rekord p\u00e5",
   },
   en: {
     home: "Home", servers: "Servers", schedule: "Schedule",
@@ -447,5 +458,16 @@ export const STRINGS = {
     fastestLap: "Fastest Lap",
     noStandings: "No standings data",
     month: "Month",
+
+    // Notification settings
+    notificationSettings: "Notification settings",
+    minutesBefore: "Minutes before",
+    raceStartNotif: "Race starting",
+    qualifyEndNotif: "Qualifying ending",
+    personalRecordNotif: "New personal record",
+    quietHours: "Quiet hours",
+    quietFrom: "From",
+    quietTo: "To",
+    newRecord: "New record on",
   },
 };

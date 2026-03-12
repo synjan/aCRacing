@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { BrowserRouter, Routes, Route, useLocation, useParams } from "react-router-dom";
 import { C, CLight, ThemeContext, useTheme } from "./theme";
 import { LangContext } from "./i18n";
@@ -6,6 +6,7 @@ import { useWidth } from "./hooks/useWidth";
 import { useAuth } from "./hooks/useAuth";
 import { useAllServers } from "./hooks/useServerStatus";
 import { useLang } from "./hooks/useLang";
+import { useNotificationSettings, isQuietHour } from "./hooks/useNotificationSettings";
 import { Sidebar } from "./components/layout/Sidebar";
 import { DesktopTopBar } from "./components/layout/DesktopTopBar";
 import { MobileHeader } from "./components/layout/MobileHeader";
@@ -71,28 +72,17 @@ function useLastSession() {
 }
 
 // ── Race notification helper (Phase 10) ──
-function useRaceNotifications(servers) {
-  const [prefs, setPrefs] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("acr-notifications") || "{}"); } catch { return {}; }
-  });
+function useRaceNotifications(servers, auth) {
+  const { settings } = useNotificationSettings();
+  const { t } = useLang();
   const [lastNotified, setLastNotified] = useState({});
+  const lastRecordCheck = useRef(0);
 
-  const toggleServer = (serverId) => {
-    const next = { ...prefs, [serverId]: !prefs[serverId] };
-    setPrefs(next);
-    localStorage.setItem("acr-notifications", JSON.stringify(next));
-
-    // Request notification permission
-    if (next[serverId] && "Notification" in window && Notification.permission === "default") {
-      Notification.requestPermission();
-    }
-  };
-
-  // Check for upcoming races
   useEffect(() => {
     if (!("Notification" in window) || Notification.permission !== "granted") return;
+    if (isQuietHour(settings.quietHours)) return;
 
-    for (const [id, enabled] of Object.entries(prefs)) {
+    for (const [id, enabled] of Object.entries(settings.servers)) {
       if (!enabled) continue;
       const status = servers[id];
       if (!status?.online || !status.data) continue;
@@ -104,22 +94,51 @@ function useRaceNotifications(servers) {
       const nextIdx = (data.session + 1) % data.sessiontypes.length;
       const nextType = data.sessiontypes[nextIdx];
 
-      // Notify when qualifying has < 10min left and next session is race
-      if (currentType === 2 && nextType === 3 && data.timeleft > 0 && data.timeleft < 600000) {
-        const key = `${id}-${data.session}`;
+      const minutesMs = settings.minutesBefore * 60000;
+
+      // Notify when qualifying has < N min left and next session is race
+      if (settings.types.qualifyEnd && currentType === 2 && nextType === 3 && data.timeleft > 0 && data.timeleft < minutesMs) {
+        const key = `${id}-qual-${data.session}`;
         if (lastNotified[key]) continue;
 
         const mins = Math.ceil(data.timeleft / 60000);
+        const serverName = id === "mx5cup" ? "MX-5 Cup" : "GT3 Series";
         new Notification("aCRacing", {
-          body: `Race starter om ${mins} min pa ${id === "mx5cup" ? "MX-5 Cup" : "GT3 Series"}!`,
+          body: `${t("qualifyEndNotif")} - ${mins} min (${serverName})`,
           icon: "/favicon.ico",
         });
         setLastNotified(prev => ({ ...prev, [key]: true })); // eslint-disable-line react-hooks/set-state-in-effect
       }
     }
-  }, [servers, prefs, lastNotified]);
+  }, [servers, settings, lastNotified, t]);
 
-  return { prefs, toggleServer };
+  // Personal record polling
+  useEffect(() => {
+    if (!auth?.user?.steamId) return;
+    if (!settings.types.personalRecord) return;
+    if (!("Notification" in window) || Notification.permission !== "granted") return;
+
+    const checkRecords = () => {
+      if (isQuietHour(settings.quietHours)) return;
+      const since = lastRecordCheck.current || Math.floor((Date.now() - 300000) / 1000);
+      fetch(`/api/profile/${auth.user.steamId}/records-check?since=${since}`, { signal: AbortSignal.timeout(5000) })
+        .then(r => r.ok ? r.json() : [])
+        .then(records => {
+          lastRecordCheck.current = Math.floor(Date.now() / 1000);
+          for (const rec of records) {
+            new Notification("aCRacing", {
+              body: `${t("newRecord")} ${rec.track} (${rec.car})`,
+              icon: "/favicon.ico",
+            });
+          }
+        })
+        .catch(() => {});
+    };
+
+    checkRecords();
+    const id = setInterval(checkRecords, 300000); // 5 min
+    return () => clearInterval(id);
+  }, [auth?.user?.steamId, settings.types.personalRecord, settings.quietHours, t]);
 }
 
 function AppShell() {
@@ -133,7 +152,7 @@ function AppShell() {
   const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem("acr-onboarding-done"));
   const location = useLocation();
   const { lastSession } = useLastSession();
-  useRaceNotifications(servers);
+  useRaceNotifications(servers, auth);
 
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000);
